@@ -91,3 +91,12 @@ build --color=yes
 build --verbose_failures
 build --spawn_strategy=standalone
 EOF
+
+if [[ $ppc_arch == "p10" ]]
+then
+cat >> $BAZEL_RC_DIR/tensorflow-serving.bazelrc << EOF
+build --copt="-Wno-stringop-overflow"
+build --copt="-Wno-array-bounds"
+build --copt="-Wno-unknown-warning-option"
+EOF
+fi

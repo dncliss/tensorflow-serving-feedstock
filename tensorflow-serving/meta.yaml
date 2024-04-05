@@ -10,6 +10,7 @@ source:
    patches:
      - 0001-TF-Build-fixed-for-x86.patch  #[x86_64]
      - 0001-Fix-P10-build.patch      #[ppc_arch == "p10"]
+     - 0001-TF-patch-for-ppc64le.patch    #[ppc64le]
  
 build:
   number: 1
