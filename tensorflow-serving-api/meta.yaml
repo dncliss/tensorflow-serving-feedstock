@@ -10,6 +10,8 @@ source:
    patches:
      - 0001-Replace-k8-with-ppc-for-Power-builds.patch # [ppc64le]
      - 0001-TF-patch-for-ppc64le.patch                 # [ppc64le and ppc_arch == 'p10']
+     - 0001-Updated-rules_python-to-v0.26.patch  #[s390x]
+     - 0001-Replaced-k8-with-s390x.patch #[s390x]
 
 build:
   number: 2

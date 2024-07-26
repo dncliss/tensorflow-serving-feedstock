@@ -1,0 +1,323 @@
+From c87143cef3183a953abc93d84af18e750928b997 Mon Sep 17 00:00:00 2001
+From: Aman Surkar <Aman.Surkar@ibm.com>
+Date: Thu, 25 Jul 2024 10:49:55 +0000
+Subject: [PATCH] serving patch for s390x
+
+---
+ WORKSPACE                                     |   1 +
+ tensorflow_serving/workspace.bzl              |  11 +
+ .../0001-TF-patches-for-s390x.patch           | 193 ++++++++++++++++++
+ third_party/tensorflow/BUILD                  |   0
+ ...r-for-big-endian-not-being-supported.patch |  57 ++++++
+ third_party/tf_runtime/BUILD                  |   0
+ 6 files changed, 262 insertions(+)
+ create mode 100644 third_party/tensorflow/0001-TF-patches-for-s390x.patch
+ create mode 100644 third_party/tensorflow/BUILD
+ create mode 100644 third_party/tf_runtime/0001-Disable-error-for-big-endian-not-being-supported.patch
+ create mode 100644 third_party/tf_runtime/BUILD
+
+diff --git a/WORKSPACE b/WORKSPACE
+index cea6d5a7..d16ded97 100644
+--- a/WORKSPACE
++++ b/WORKSPACE
+@@ -26,6 +26,7 @@ tensorflow_http_archive(
+     name = "org_tensorflow",
+     sha256 = "bede963ce97c4badcbb3149acd7c35a6a4954fa3361b777272a58a300e7e8f1d",
+     git_commit = "99d80a9e254c9df7940b2902b14d15914dbbbcd9",
++    patch = "//third_party/tensorflow:0001-TF-patches-for-s390x.patch",
+ )
+ 
+ # Import all of TensorFlow Serving's external dependencies.
+diff --git a/tensorflow_serving/workspace.bzl b/tensorflow_serving/workspace.bzl
+index de1203a7..3f0778d6 100644
+--- a/tensorflow_serving/workspace.bzl
++++ b/tensorflow_serving/workspace.bzl
+@@ -17,6 +17,17 @@ def tf_serving_workspace():
+         url = "https://github.com/bazelbuild/bazel-skylib/releases/download/1.3.0/bazel-skylib-1.3.0.tar.gz",
+     )
+ 
++    http_archive(
++        name = "tf_runtime",
++        sha256 = "778bac534b9fa81f2b2f1d19c05121992f78d3dd8e8a99787be9ef92c62cace7",
++        strip_prefix = "runtime-769f5cc9b8732933140b09e8808d13614182b496",
++        url = "https://github.com/tensorflow/runtime/archive/769f5cc9b8732933140b09e8808d13614182b496.tar.gz",
++        # A patch file can be provided for atomic commits to both TF and TFRT.
++        # The job that bumps the TFRT_COMMIT also resets patch_file to 'None'.
++        patches = ["//third_party/tf_runtime:0001-Disable-error-for-big-endian-not-being-supported.patch"],
++        patch_args = ["-p1"],
++    )
++
+     # ===== Bazel package rules dependency =====
+     http_archive(
+         name = "rules_pkg",
+diff --git a/third_party/tensorflow/0001-TF-patches-for-s390x.patch b/third_party/tensorflow/0001-TF-patches-for-s390x.patch
+new file mode 100644
+index 00000000..9af74158
+--- /dev/null
++++ b/third_party/tensorflow/0001-TF-patches-for-s390x.patch
+@@ -0,0 +1,193 @@
++From 2cc8a9e242e1c518357dd85563f151f70075751c Mon Sep 17 00:00:00 2001
++From: Aman Surkar <Aman.Surkar@ibm.com>
++Date: Thu, 25 Jul 2024 10:11:01 +0000
++Subject: [PATCH] TF patches for s390x
++
++---
++ .../tsl/platform/profile_utils/cpu_utils.h    |  2 +-
++ tensorflow/workspace2.bzl                     |  9 ++--
++ .../0001-Fix-boringssl-for-s390x.patch        | 25 +++++++++
++ .../0001-Fix-for-build-failure-with-GCC.patch | 54 +++++++++++++++++++
++ third_party/systemlibs/sqlite.BUILD           | 27 +++++++++-
++ 5 files changed, 111 insertions(+), 6 deletions(-)
++ create mode 100644 third_party/boringssl/0001-Fix-boringssl-for-s390x.patch
++ create mode 100644 third_party/grpc/0001-Fix-for-build-failure-with-GCC.patch
++
++diff --git a/tensorflow/tsl/platform/profile_utils/cpu_utils.h b/tensorflow/tsl/platform/profile_utils/cpu_utils.h
++index 87f25562da4..2d2480dd0f4 100644
++--- a/tensorflow/tsl/platform/profile_utils/cpu_utils.h
+++++ b/tensorflow/tsl/platform/profile_utils/cpu_utils.h
++@@ -113,7 +113,7 @@ class CpuUtils {
++     // TOD Clock of s390x runs at a different frequency than the CPU's.
++     // The stepping is 244 picoseconds (~4Ghz).
++     uint64 t;
++-    __asm__ __volatile__("stckf %0" : "=Q"(t));
+++    __asm__ __volatile__("stck %0" : "=Q"(t));
++     return t;
++ #else
++     // TODO(satok): Support generic way to emulate clock count.
++diff --git a/tensorflow/workspace2.bzl b/tensorflow/workspace2.bzl
++index 3456b20b7e7..bb2edc58f5c 100644
++--- a/tensorflow/workspace2.bzl
+++++ b/tensorflow/workspace2.bzl
++@@ -571,10 +571,11 @@ def _tf_repositories():
++ 
++     tf_http_archive(
++         name = "boringssl",
++-        sha256 = "9dc53f851107eaf87b391136d13b815df97ec8f76dadb487b58b2fc45e624d2c",
++-        strip_prefix = "boringssl-c00d7ca810e93780bd0c8ee4eea28f4f2ea4bcdc",
+++        sha256 = "534fa658bd845fd974b50b10f444d392dfd0d93768c4a51b61263fd37d851c40",
+++        strip_prefix = "boringssl-b9232f9e27e5668bc0414879dcdedb2a59ea75f2",
++         system_build_file = "//third_party/systemlibs:boringssl.BUILD",
++-        urls = tf_mirror_urls("https://github.com/google/boringssl/archive/c00d7ca810e93780bd0c8ee4eea28f4f2ea4bcdc.tar.gz"),
+++        patch_file = ["//third_party/boringssl:0001-Fix-boringssl-for-s390x.patch"],
+++        urls = tf_mirror_urls("https://github.com/google/boringssl/archive/b9232f9e27e5668bc0414879dcdedb2a59ea75f2.tar.gz"),
++     )
++ 
++     # Note: if you update this, you have to update libpng too. See cl/437813808
++@@ -908,7 +909,7 @@ def _tf_repositories():
++         name = "upb",
++         sha256 = "61d0417abd60e65ed589c9deee7c124fe76a4106831f6ad39464e1525cef1454",
++         strip_prefix = "upb-9effcbcb27f0a665f9f345030188c0b291e32482",
++-        patch_file = ["//third_party/grpc:upb_platform_fix.patch"],
+++        patch_file = ["//third_party/grpc:upb_platform_fix.patch","//third_party/grpc:0001-Fix-for-build-failure-with-GCC.patch",],
++         urls = tf_mirror_urls("https://github.com/protocolbuffers/upb/archive/9effcbcb27f0a665f9f345030188c0b291e32482.tar.gz"),
++     )
++ 
++diff --git a/third_party/boringssl/0001-Fix-boringssl-for-s390x.patch b/third_party/boringssl/0001-Fix-boringssl-for-s390x.patch
++new file mode 100644
++index 00000000000..d24b886fa1f
++--- /dev/null
+++++ b/third_party/boringssl/0001-Fix-boringssl-for-s390x.patch
++@@ -0,0 +1,25 @@
+++From 00143ef1f2ee71d9791ef7ecf1e0aadc61087d95 Mon Sep 17 00:00:00 2001
+++From: Aman Surkar <Aman.Surkar@ibm.com>
+++Date: Fri, 12 Jul 2024 13:27:42 +0000
+++Subject: [PATCH] Fix boringssl for s390x
+++
+++---
+++ src/include/openssl/base.h | 2 +-
+++ 1 file changed, 1 insertion(+), 1 deletion(-)
+++
+++diff --git a/src/include/openssl/base.h b/src/include/openssl/base.h
+++index 983eadc5d..34747261c 100644
+++--- a/src/include/openssl/base.h
++++++ b/src/include/openssl/base.h
+++@@ -123,7 +123,7 @@ extern "C" {
+++ // little-endian architectures. Functions will not produce the correct answer
+++ // on other systems. Run the crypto_test binary, notably
+++ // crypto/compiler_test.cc, before adding a new architecture.
+++-#error "Unknown target CPU"
++++#define OPENSSL_64_BIT
+++ #endif
+++ 
+++ #if defined(__APPLE__)
+++-- 
+++2.40.1
+++
++diff --git a/third_party/grpc/0001-Fix-for-build-failure-with-GCC.patch b/third_party/grpc/0001-Fix-for-build-failure-with-GCC.patch
++new file mode 100644
++index 00000000000..2c9bb727c07
++--- /dev/null
+++++ b/third_party/grpc/0001-Fix-for-build-failure-with-GCC.patch
++@@ -0,0 +1,54 @@
+++From 5dcbbda25fac0ca8ec93ba7dac93508fb60482ed Mon Sep 17 00:00:00 2001
+++From: Aman Surkar <Aman.Surkar@ibm.com>
+++Date: Tue, 16 Jul 2024 06:51:00 +0000
+++Subject: [PATCH] Fix for build failure with GCC
+++
+++---
+++ upb/upb.c | 17 +++--------------
+++ 1 file changed, 3 insertions(+), 14 deletions(-)
+++
+++diff --git a/upb/upb.c b/upb/upb.c
+++index 266ea7d7..1410b2d8 100644
+++--- a/upb/upb.c
++++++ b/upb/upb.c
+++@@ -11,17 +11,6 @@
+++ 
+++ #include "upb/port_def.inc"
+++ 
+++-/* Guarantee null-termination and provide ellipsis truncation.
+++- * It may be tempting to "optimize" this by initializing these final
+++- * four bytes up-front and then being careful never to overwrite them,
+++- * this is safer and simpler. */
+++-static void nullz(upb_status *status) {
+++-  const char *ellipsis = "...";
+++-  size_t len = strlen(ellipsis);
+++-  UPB_ASSERT(sizeof(status->msg) > len);
+++-  memcpy(status->msg + sizeof(status->msg) - len, ellipsis, len);
+++-}
+++-
+++ /* upb_status *****************************************************************/
+++ 
+++ void upb_status_clear(upb_status *status) {
+++@@ -37,8 +26,8 @@ const char *upb_status_errmsg(const upb_status *status) { return status->msg; }
+++ void upb_status_seterrmsg(upb_status *status, const char *msg) {
+++   if (!status) return;
+++   status->ok = false;
+++-  strncpy(status->msg, msg, sizeof(status->msg));
+++-  nullz(status);
++++  strncpy(status->msg, msg, UPB_STATUS_MAX_MESSAGE - 1);
++++  status->msg[UPB_STATUS_MAX_MESSAGE - 1] = '\0';
+++ }
+++ 
+++ void upb_status_seterrf(upb_status *status, const char *fmt, ...) {
+++@@ -52,7 +41,7 @@ void upb_status_vseterrf(upb_status *status, const char *fmt, va_list args) {
+++   if (!status) return;
+++   status->ok = false;
+++   _upb_vsnprintf(status->msg, sizeof(status->msg), fmt, args);
+++-  nullz(status);
++++  status->msg[UPB_STATUS_MAX_MESSAGE - 1] = '\0';
+++ }
+++ 
+++ /* upb_alloc ******************************************************************/
+++-- 
+++2.40.1
+++
++diff --git a/third_party/systemlibs/sqlite.BUILD b/third_party/systemlibs/sqlite.BUILD
++index 88a84a96137..31fc5ed5e88 100644
++--- a/third_party/systemlibs/sqlite.BUILD
+++++ b/third_party/systemlibs/sqlite.BUILD
++@@ -1,12 +1,37 @@
++ licenses(["unencumbered"])  # Public Domain
++ 
+++HEADERS = [
+++   "sqlite3.h",
+++   "sqlite3ext.h",
+++]
+++
+++LIBS = [
+++   "libsqlite3.so",
+++   "libsqlite3.so.0",
+++   "libsqlite3.so.0.8.6",
+++]
+++
++ # Production build of SQLite library that's baked into TensorFlow.
++ cc_library(
++     name = "org_sqlite",
++-    linkopts = ["-lsqlite3"],
+++    hdrs = HEADERS,
+++    srcs = LIBS,
+++    includes = ["."],
++     visibility = ["//visibility:public"],
++ )
++ 
+++genrule(
+++    name = "sqlite-files",
+++    outs = HEADERS + LIBS,
+++    cmd = """
+++      cp -fL "$(INCLUDEDIR)/sqlite3.h" "$(@D)" &&
+++      cp -fL "$(INCLUDEDIR)/sqlite3ext.h" "$(@D)" &&
+++      cp -fL "$(LIBDIR)/libsqlite3.so.0.8.6" "$(@D)" &&
+++      ln -sf "$(LIBDIR)/libsqlite3.so.0.8.6" "$(@D)/libsqlite3.so.0" &&
+++      ln -sf "$(LIBDIR)/libsqlite3.so.0.8.6" "$(@D)/libsqlite3.so"
+++    """,
+++)
+++
++ # This is a Copybara sync helper for Google.
++ py_library(
++     name = "python",
++-- 
++2.34.1
++
+diff --git a/third_party/tensorflow/BUILD b/third_party/tensorflow/BUILD
+new file mode 100644
+index 00000000..e69de29b
+diff --git a/third_party/tf_runtime/0001-Disable-error-for-big-endian-not-being-supported.patch b/third_party/tf_runtime/0001-Disable-error-for-big-endian-not-being-supported.patch
+new file mode 100644
+index 00000000..9f319363
+--- /dev/null
++++ b/third_party/tf_runtime/0001-Disable-error-for-big-endian-not-being-supported.patch
+@@ -0,0 +1,57 @@
++From 4dc10b1b514f27f28065ea01c4e23cd93f9ec743 Mon Sep 17 00:00:00 2001
++From: Aman Surkar <Aman.Surkar@ibm.com>
++Date: Thu, 18 Jul 2024 12:00:14 +0000
++Subject: [PATCH] Disable error for big endian not being supported
++
++---
++ include/tfrt/host_context/attribute_utils.h | 4 ++--
++ lib/tensor/tensor_serialize_utils.cc        | 4 ++--
++ 2 files changed, 4 insertions(+), 4 deletions(-)
++
++diff --git a/include/tfrt/host_context/attribute_utils.h b/include/tfrt/host_context/attribute_utils.h
++index cbded469..b1074096 100644
++--- a/include/tfrt/host_context/attribute_utils.h
+++++ b/include/tfrt/host_context/attribute_utils.h
++@@ -52,7 +52,7 @@ class Attribute {
++  public:
++   explicit Attribute(const void* value)
++       : value_(*reinterpret_cast<const T*>(value)) {
++-    ASSERT_LITTLE_ENDIAN();
+++    //ASSERT_LITTLE_ENDIAN();
++   }
++ 
++   const T& get() const { return value_; }
++@@ -127,7 +127,7 @@ class CompilationUnitAttribute {
++  public:
++   explicit CompilationUnitAttribute(const void* value)
++       : addr_(reinterpret_cast<intptr_t>(value)) {
++-    ASSERT_LITTLE_ENDIAN();
+++    //ASSERT_LITTLE_ENDIAN();
++     const auto* ptr = static_cast<const uint8_t*>(value);
++ 
++     ptr = ReadVbrInt(ptr, &id_);
++diff --git a/lib/tensor/tensor_serialize_utils.cc b/lib/tensor/tensor_serialize_utils.cc
++index ddaa7b1b..c585054e 100644
++--- a/lib/tensor/tensor_serialize_utils.cc
+++++ b/lib/tensor/tensor_serialize_utils.cc
++@@ -102,7 +102,7 @@ std::string SerializeTensorMetadata(const TensorMetadata& md) {
++ 
++ llvm::Expected<TensorMetadata> DeserializeTensorMetadataInternal(
++     const char* pos, size_t size) {
++-  ASSERT_LITTLE_ENDIAN();
+++  //ASSERT_LITTLE_ENDIAN();
++   DType kind = static_cast<DType>(*reinterpret_cast<const uint64_t*>(pos));
++   pos += sizeof(uint64_t);
++   const int num_dimensions = size / 8 - 1;
++@@ -119,7 +119,7 @@ llvm::Expected<TensorMetadata> DeserializeTensorMetadataInternal(
++ 
++ llvm::Expected<TensorMetadata> DeserializeTensorMetadata(
++     string_view serialized) {
++-  ASSERT_LITTLE_ENDIAN();
+++  //ASSERT_LITTLE_ENDIAN();
++   return DeserializeTensorMetadataInternal(serialized.data(),
++                                            serialized.size());
++ }
++-- 
++2.40.1
++
+diff --git a/third_party/tf_runtime/BUILD b/third_party/tf_runtime/BUILD
+new file mode 100644
+index 00000000..e69de29b
+-- 
+2.34.1
+

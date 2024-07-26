@@ -21,7 +21,7 @@ BAZEL_RC_DIR=$1
 ARCH=`uname -p`
 
 XNNPACK_STATUS=true
-if [[ "${ARCH}" == 'ppc64le' ]]; then
+if [[ "${ARCH}" == 'ppc64le' || "${ARCH}" == 's390x' ]]; then
      XNNPACK_STATUS=false
 fi
 
@@ -35,7 +35,7 @@ if [ -z "${cpu_opt_tune}"]; then
      CPU_ARCH_OPTION='';
      CPU_ARCH_HOST_OPTION='';
 else
-     if [[ "${ARCH}" == 'x86_64' ]]; then
+     if [[ "${ARCH}" == 'x86_64' || "${ARCH}" == 's390x' ]]; then
           CPU_ARCH_FRAG="-march=${cpu_opt_arch}"
      fi
      if [[ "${ARCH}" == 'ppc64le' ]]; then
@@ -100,3 +100,12 @@ build --copt="-Wno-array-bounds"
 build --copt="-Wno-unknown-warning-option"
 EOF
 fi
+
+if [[ $ARCH == "s390x" ]]; then
+cat >> $BAZEL_RC_DIR/tensorflow-serving.bazelrc << EOF
+build --copt="-fno-strict-aliasing"
+build --copt="-Wno-class-memaccess"
+build --copt="-Wno-unused-function"
+EOF
+fi
+

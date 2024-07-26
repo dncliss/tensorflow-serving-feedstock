@@ -53,7 +53,7 @@ fi
 $SCRIPT_DIR/set_tf_serving_bazelrc.sh $SRC_DIR/tensorflow_serving
 
 BUILD_OPTS=" "
-if [[ "${ARCH}" != 'ppc64le' ]]; then
+if [[ "${ARCH}" == 'x86_64' ]]; then
   BUILD_OPTS+=" --config=release"
 fi
 
@@ -72,7 +72,6 @@ if [[ $ARCH == "x86_64" ]]; then
 fi
 
 bazel --bazelrc=$SRC_DIR/tensorflow_serving/tensorflow-serving.bazelrc build ${BUILD_OPTS} \
-    --local_cpu_resources=HOST_CPUS-10 \
     --local_ram_resources=HOST_RAM*0.50 \
     --curses=no \
     --output_filter=DONT_MATCH_ANYTHING \

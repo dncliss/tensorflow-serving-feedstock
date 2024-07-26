@@ -1,0 +1,25 @@
+From 68256b71c5a7255c84fb3adc65375ef97a45a433 Mon Sep 17 00:00:00 2001
+From: Aman Surkar <Aman.Surkar@ibm.com>
+Date: Thu, 25 Jul 2024 10:52:50 +0000
+Subject: [PATCH] Replaced k8 with s390x
+
+---
+ tensorflow_serving/tools/pip_package/build_pip_package.sh | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/tensorflow_serving/tools/pip_package/build_pip_package.sh b/tensorflow_serving/tools/pip_package/build_pip_package.sh
+index cc621cb9..a9cd8300 100755
+--- a/tensorflow_serving/tools/pip_package/build_pip_package.sh
++++ b/tensorflow_serving/tools/pip_package/build_pip_package.sh
+@@ -40,6 +40,8 @@ function main() {
+   BAZEL_OPT_DIR="k8-opt"
+   if [[ $(uname -m) == "aarch64" ]]; then
+           BAZEL_OPT_DIR="aarch64-opt"
++  elif [[ $(uname -m) == "s390x" ]]; then
++          BAZEL_OPT_DIR="s390x-opt"
+   fi
+ 
+   echo "Adding python files"
+-- 
+2.34.1
+

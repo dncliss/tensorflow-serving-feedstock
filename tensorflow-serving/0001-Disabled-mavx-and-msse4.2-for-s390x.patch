@@ -1,0 +1,25 @@
+From 0891d2d00ede2d01eacaba3945ec1b3194a0ce37 Mon Sep 17 00:00:00 2001
+From: Aman Surkar <Aman.Surkar@ibm.com>
+Date: Wed, 10 Jul 2024 04:25:22 +0000
+Subject: [PATCH] Disabled -mavx and -msse4.2 for s390x
+
+---
+ .bazelrc | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/.bazelrc b/.bazelrc
+index 483eace0..a5249835 100644
+--- a/.bazelrc
++++ b/.bazelrc
+@@ -1,6 +1,6 @@
+ # Optimizations used for TF Serving release builds.
+-build:release --copt=-mavx
+-build:release --copt=-msse4.2
++# build:release --copt=-mavx
++# build:release --copt=-msse4.2
+ 
+ # Options used to build with CUDA.
+ build:cuda --repo_env TF_NEED_CUDA=1
+-- 
+2.40.1
+

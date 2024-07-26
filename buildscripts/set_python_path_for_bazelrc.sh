@@ -24,3 +24,11 @@ build --action_env PYTHON_LIB_PATH="$SP_DIR"
 build --action_env PATH="$PREFIX/bin:$PATH"
 build --python_path="$PYTHON"
 EOF
+
+ARCH=`uname -p`
+if [[ "${ARCH}" == 's390x' ]]; then
+cat > $BAZEL_RC_DIR/python_configure.bazelrc << EOF
+build --action_env CC="$PREFIX/gcc"
+build --action_env CXX="$PREFIX/g++"
+EOF
+fi
